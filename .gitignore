@@ -11,3 +11,4 @@
 *.la
 *.a
 /TestCode/Debug
+/TestCode/TestClient/Debug
