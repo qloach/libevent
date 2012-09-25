@@ -136,7 +136,7 @@ static void conn_eventcb(struct bufferevent* bev, short events, void* user_data)
 		printf("read timeout:%s\n", strerror(errno));
 	}
 
-	bufferevent_free(bev);
+	//bufferevent_free(bev);
 
 }
 
