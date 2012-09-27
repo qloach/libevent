@@ -1,152 +1,107 @@
-#include <string.h>
-#include <errno.h>
-#include <stdio.h>
-#include <signal.h>
+					  #include <event2/listener.h>
+#include <event2/bufferevent.h>
+#include <event2/buffer.h>
 
-#include "event2/bufferevent.h"
-#include "event2/buffer.h"
-#include "event2/listener.h"
-#include "event2/util.h"
-#include "event2/event.h"
-#include "event2/event_compat.h"
+//#include <string.h>
+//#include <stdlib.h>
+//#include <stdio.h>
+//#include <errno.h>
+#include <iostream>
+using namespace std;
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "libevent_core.lib")
 
-static const u_short PORT = 9995;
-
-static void listener_cb(struct evconnlistener*, evutil_socket_t, struct sockaddr*, int socklen, void*);
-static void conn_readcb(struct bufferevent*, void*);
-static void conn_writecb(struct bufferevent*, void*);
-static void conn_eventcb(struct bufferevent*, short, void*);
-static void signal_cb(evutil_socket_t, short, void*);
-
-int main(int argc, char** argv)
+static void echo_read_cb(struct bufferevent *bev, void *ctx)
 {
-	WSADATA wsa_data;
-	struct event_base* base;
-	struct evconnlistener* listener;
-	struct event* signal_event;
-	struct sockaddr_in sin;
-	WSAStartup(0x0201, &wsa_data);
+	char ReadBuff[1024];
+	memset(ReadBuff, 0, 1024);
+    /* This callback is invoked when there is data to read on bev. */
+    struct evbuffer *input = bufferevent_get_input(bev);
+    struct evbuffer *output = bufferevent_get_output(bev);
 
-	base = event_base_new();
-	if (!base)
-	{
-		fprintf(stderr, "Could not initialize libevent\n");
-		return 1;
-	}
-
-	memset(&sin, 0, sizeof(sin));
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(PORT);
-
-	listener = evconnlistener_new_bind(
-		base,
-		listener_cb, 
-		(void*)base, 
-		LEV_OPT_REUSEABLE | LEV_OPT_CLOSE_ON_FREE, 
-		-1, 
-		(struct sockaddr*)&sin, 
-		sizeof(sin)
-		);
-
-	if (!listener)
-	{
-		fprintf(stderr, "Could not create a listener!\n");
-		return 1;
-	}
-
-	signal_event = evsignal_new(base, SIGINT, signal_cb, (void*)base);
-	if (!signal_event || event_add(signal_event, NULL) < 0)
-	{
-		fprintf(stderr, "could not create/add a signal event!\n");
-		return 1;
-	}
-
-	event_base_dispatch(base);
-
-	evconnlistener_free(listener);
-	event_free(signal_event);
-	event_base_free(base);
-
-	printf("done\n");
-
-	return 0;
+	int len = bufferevent_read(bev, ReadBuff, 1024);
+	cout<<"echo_read_cb:"<<ReadBuff<<endl;
+    /* Copy all the data from the input buffer to the output buffer. */
+    //evbuffer_add_buffer(output, input);
 }
 
-static void listener_cb(struct evconnlistener* linstener, evutil_socket_t fd, struct sockaddr* sa, int socklen, void* user_data)
+static void echo_event_cb(struct bufferevent *bev, short events, void *ctx)
 {
-	struct timeval tv;
-	struct event_base* base = (event_base*)user_data;
-	struct bufferevent* bev;
-
-	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
-	if (!bev)
+    if (events & BEV_EVENT_ERROR)
 	{
-		fprintf(stderr, "Error constructing bufferevent");
-		event_base_loopbreak(base);
-		return;
+            cout<<"Error from bufferevent"<<endl;
 	}
-
-	bufferevent_setcb(bev, conn_readcb, conn_writecb, conn_eventcb, NULL);
-
-	tv.tv_sec = 30;
-	tv.tv_usec = 0;
-	bufferevent_set_timeouts(bev,&tv, NULL);
-	bufferevent_setwatermark(bev, EV_READ, 10, 0);
-
-	bufferevent_enable(bev, EV_READ | EV_WRITE);
+    if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR))
+	{
+            bufferevent_free(bev);
+    }
 }
 
-static void conn_readcb(struct bufferevent* bev, void* user_data)
+static void accept_conn_cb(struct evconnlistener *listener,
+    evutil_socket_t fd, struct sockaddr *address, int socklen,
+    void *ctx)
 {
-	struct evbuffer* input = bufferevent_get_output(bev);
-	if (evbuffer_get_length(input) == 0)
-	{
-		bufferevent_free(bev);
-	}
-	else
-	{
-		bufferevent_write_buffer(bev, input);
-	}
+        /* We got a new connection! Set up a bufferevent for it. */
+        struct event_base *base = evconnlistener_get_base(listener);
+        struct bufferevent *bev = bufferevent_socket_new(
+                base, fd, BEV_OPT_CLOSE_ON_FREE);
+
+        bufferevent_setcb(bev, echo_read_cb, NULL, echo_event_cb, NULL);
+
+        bufferevent_enable(bev, EV_READ|EV_WRITE);
 }
 
-static void conn_writecb(struct bufferevent* bev, void* user_data)
+static void
+accept_error_cb(struct evconnlistener *listener, void *ctx)
 {
-	struct evbuffer* output = bufferevent_get_output(bev);
-	if (evbuffer_get_length(output) == 0)
-	{
-		printf("flushed answer\n");
-	}
+        struct event_base *base = evconnlistener_get_base(listener);
+        int err = EVUTIL_SOCKET_ERROR();
+        cout<<"Got an error %d (%s) on the listener. "
+                "Shutting down.\n"<<endl;
+
+        event_base_loopexit(base, NULL);
 }
 
-static void conn_eventcb(struct bufferevent* bev, short events, void* user_data)
+int main(int argc, char **argv)
 {
-	if (events & BEV_EVENT_EOF)
-	{
-		printf("Connection closed\n");
-	}
-	else if (events & BEV_EVENT_ERROR)
-	{
-		printf("Got an error on the connection:%s\n", strerror(errno));
-	}
-	else if (events & (BEV_EVENT_READING | BEV_EVENT_TIMEOUT))
-	{
-		printf("read timeout:%s\n", strerror(errno));
-	}
+	WSADATA wsaData;
+	WSAStartup(MAKEWORD(2,2), &wsaData);
 
-	//bufferevent_free(bev);
+        struct event_base *base;
+        struct evconnlistener *listener;
+        struct sockaddr_in sin;
 
-}
+        int port = 9995;
 
-static void signal_cb(evutil_socket_t sig, short events, void* user_data)
-{
-	struct event_base* base = (event_base*)user_data;
-	struct timeval delay = {2, 0};
-	printf("Caught an interrupt signal; exitiong cleanly in two seconds.\n");
+        base = event_base_new();
+        if (!base) {
+                cout<<"Couldn't open event base"<<endl;
+                return 1;
+        }
 
-	event_base_loopexit(base, &delay);
+        /* Clear the sockaddr before using it, in case there are extra
+         * platform-specific fields that can mess us up. */
+        memset(&sin, 0, sizeof(sin));
+        /* This is an INET address */
+        sin.sin_family = AF_INET;
+        /* Listen on 0.0.0.0 */
+        sin.sin_addr.s_addr = htonl(0);
+        /* Listen on the given port. */
+        sin.sin_port = htons(port);
+
+        listener = evconnlistener_new_bind(base, accept_conn_cb, NULL,
+            LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE, -1,
+            (struct sockaddr*)&sin, sizeof(sin));
+        if (!listener) 
+		{
+                cout<<"Couldn't create listener"<<endl;
+                return 1;
+        }
+        evconnlistener_set_error_cb(listener, accept_error_cb);
+
+        event_base_dispatch(base);
+        return 0;
 }
 
 

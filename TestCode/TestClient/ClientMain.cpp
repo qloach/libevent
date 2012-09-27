@@ -1,3 +1,4 @@
+
 #include <event2/event.h>
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
@@ -11,10 +12,11 @@ using namespace std;
 bufferevent* MainBev;
 bool bCanWrite;
 
-void eventcb(struct bufferevent *bev, short events, void *ptr)
+static void eventcb(struct bufferevent *bev, short events, void *ptr)
 {
     if (events & BEV_EVENT_CONNECTED)
 	{
+		//bufferevent_enable(bev, EV_READ|EV_WRITE);
 		MainBev = bev;
 		cout<<"event & bev_event_connected"<<endl;
     }
@@ -31,7 +33,7 @@ void eventcb(struct bufferevent *bev, short events, void *ptr)
     }
 }
 
-void readcb(struct bufferevent *bev, void *ptr)
+static void readcb(struct bufferevent *bev, void *ptr)
 {
     char buf[1024];
 	memset(buf, 0, 1024);
@@ -92,6 +94,8 @@ int main()
 
     bufferevent_setcb(bev, readcb, writecb, eventcb, NULL);
 
+	bufferevent_enable(bev, EV_READ|EV_WRITE);
+
     if (bufferevent_socket_connect(bev, (struct sockaddr *)&sin, sizeof(sin)) < 0)
 	{
         /* Error starting connection */
@@ -113,3 +117,123 @@ int main()
 
     return 0;
 }
+
+
+
+
+//
+//#include <winsock2.h>
+//#include <Ws2tcpip.h>
+//
+//#include <iostream>
+//using namespace std;
+//
+//// Link with ws2_32.lib
+//#pragma comment(lib, "Ws2_32.lib")
+//
+//#define DEFAULT_BUFLEN 1024
+//#define DEFAULT_PORT 9995
+//
+//int main() {
+//
+//    //----------------------
+//    // Declare and initialize variables.
+//    int iResult;
+//    WSADATA wsaData;
+//
+//    SOCKET ConnectSocket = INVALID_SOCKET;
+//    struct sockaddr_in clientService; 
+//
+//    //----------------------
+//    // Initialize Winsock
+//    iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+//    if (iResult != NO_ERROR) 
+//	{
+//        cout<<"WSAStartup failed with error:"<<iResult<<endl;
+//        return 1;
+//    }
+//
+//    //----------------------
+//    // Create a SOCKET for connecting to server
+//    ConnectSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+//    if (ConnectSocket == INVALID_SOCKET) 
+//	{
+//        cout<<"socket failed with error:"<<WSAGetLastError()<<endl;
+//        WSACleanup();
+//        return 1;
+//    }
+//
+//    //----------------------
+//    // The sockaddr_in structure specifies the address family,
+//    // IP address, and port of the server to be connected to.
+//    clientService.sin_family = AF_INET;
+//    clientService.sin_addr.s_addr = inet_addr( "127.0.0.1" );
+//    clientService.sin_port = htons( DEFAULT_PORT );
+//
+//    //----------------------
+//    // Connect to server.
+//    iResult = connect( ConnectSocket, (SOCKADDR*) &clientService, sizeof(clientService) );
+//    if (iResult == SOCKET_ERROR) 
+//	{
+//        cout<<"connect failed with error:"<<WSAGetLastError()<<endl;
+//        closesocket(ConnectSocket);
+//        WSACleanup();
+//        return 1;
+//  }
+//
+//	while(true)
+//	{
+//		char SendBuff[1024];
+//		memset(SendBuff, 0, 1024);
+//		cin>>SendBuff;
+//		iResult = send(ConnectSocket, SendBuff, strlen(SendBuff), 0);
+//		cout<<"Send Result = "<<iResult<<endl;
+//	}
+//
+//    //----------------------
+//    // Send an initial buffer
+//    //iResult = send( ConnectSocket, sendbuf, (int)strlen(sendbuf), 0 );
+//    //if (iResult == SOCKET_ERROR) {
+//    //    cout<<"send failed with error:"<<WSAGetLastError()<<endl;
+//    //    closesocket(ConnectSocket);
+//    //    WSACleanup();
+//    //    return 1;
+//    //}
+//
+//   // printf("Bytes Sent: %d\n", iResult);
+//
+//    // shutdown the connection since no more data will be sent
+//    //iResult = shutdown(ConnectSocket, SD_SEND);
+//    //if (iResult == SOCKET_ERROR) {
+//    //    wprintf(L"shutdown failed with error: %d\n", WSAGetLastError());
+//    //    closesocket(ConnectSocket);
+//    //    WSACleanup();
+//    //    return 1;
+//    //}
+//
+//    // Receive until the peer closes the connection
+//    //do {
+//
+//    //    iResult = recv(ConnectSocket, recvbuf, recvbuflen, 0);
+//    //    if ( iResult > 0 )
+//    //        cout<<"Bytes received:"<<iResult<<endl;
+//    //    else if ( iResult == 0 )
+//    //        cout<<"Connection closed\n"<<endl;
+//    //    else
+//    //        cout<<"recv failed with error:"<<WSAGetLastError()<<endl;
+//
+//    //} while( iResult > 0 );
+//
+//
+//    // close the socket
+//    iResult = closesocket(ConnectSocket);
+//    if (iResult == SOCKET_ERROR) {
+//        cout<<"close failed with error:"<<WSAGetLastError()<<endl;
+//        WSACleanup();
+//        return 1;
+//    }
+//
+//    WSACleanup();
+//    return 0;
+//}
+//
