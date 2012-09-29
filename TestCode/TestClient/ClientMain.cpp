@@ -19,6 +19,11 @@ static void eventcb(struct bufferevent *bev, short events, void *ptr)
 		//bufferevent_enable(bev, EV_READ|EV_WRITE);
 		MainBev = bev;
 		cout<<"event & bev_event_connected"<<endl;
+		char HelloText[50];
+		memset(HelloText, 0, 50);
+		strcpy(HelloText, "hello server");
+		int ret = bufferevent_write(bev, HelloText, strlen(HelloText));
+		cout<<"write eventbuffer ret="<<ret<<endl;
     }
 	else if (events & (BEV_EVENT_ERROR|BEV_EVENT_EOF)) 
 	{
@@ -74,8 +79,14 @@ void SendData(char* data, int size)
 
 int main()
 {
-	WSADATA wsa_data;
-	WSAStartup(0x0201, &wsa_data);
+    WSADATA wsaData;
+    int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (iResult != NO_ERROR) 
+	{
+        cout<<"WSAStartup function failed with error:"<<iResult<<endl;
+        return 1;
+    }
+
     event_base *base;
     bufferevent *bev;
     sockaddr_in sin;
@@ -87,8 +98,8 @@ int main()
 
     memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = htonl(0x7f000001); /* 127.0.0.1 */
-    sin.sin_port = htons(9995);
+    sin.sin_addr.s_addr = inet_addr("127.0.0.1");
+    sin.sin_port = htons(9999);
 
     bev = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
 
@@ -103,7 +114,9 @@ int main()
         return -1;
     }
 
-    event_base_dispatch(base);
+	
+	event_base_loop(base, EVLOOP_NONBLOCK);
+   // event_base_dispatch(base);
 
 	char input[1024];
 	memset(input, 0, 1024);
@@ -112,6 +125,8 @@ int main()
 		memset(input, 0, 1024);
 		cin>>input;
 		SendData(input, strlen(input));
+
+		event_base_loop(base, EVLOOP_NONBLOCK);
 	}
 	
 

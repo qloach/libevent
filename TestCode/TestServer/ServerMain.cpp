@@ -1,11 +1,7 @@
-					  #include <event2/listener.h>
+#include <event2/listener.h>
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
 
-//#include <string.h>
-//#include <stdlib.h>
-//#include <stdio.h>
-//#include <errno.h>
 #include <iostream>
 using namespace std;
 
@@ -72,7 +68,7 @@ int main(int argc, char **argv)
         struct evconnlistener *listener;
         struct sockaddr_in sin;
 
-        int port = 9995;
+        int port = 9999;
 
         base = event_base_new();
         if (!base) {
@@ -86,9 +82,11 @@ int main(int argc, char **argv)
         /* This is an INET address */
         sin.sin_family = AF_INET;
         /* Listen on 0.0.0.0 */
-        sin.sin_addr.s_addr = htonl(0);
+        sin.sin_addr.s_addr = inet_addr("127.0.0.1");
         /* Listen on the given port. */
         sin.sin_port = htons(port);
+
+
 
         listener = evconnlistener_new_bind(base, accept_conn_cb, NULL,
             LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE, -1,
