@@ -4,7 +4,10 @@
 #include <map>
 using namespace std;
 
+#include "Protocol.h"
+
 struct bufferevent;
+
 
 class QServerNetwork
 {
